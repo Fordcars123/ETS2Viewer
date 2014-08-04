@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>ETS2 Viewer</title>
+		<script src="/socket.io/socket.io.js"></script>
+		<script>
+      // ETS2Viewer
+      // Copyright © 2014 Carl Hewett
+
+      // This program is free software: you can redistribute it and/or modify
+      // it under the terms of the GNU General Public License as published by
+      // the Free Software Foundation, either version 3 of the License, or
+      // (at your option) any later version.
+
+      // This program is distributed in the hope that it will be useful,
+      // but WITHOUT ANY WARRANTY; without even the implied warranty of
+      // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+      // GNU General Public License for more details.
+
+      // You should have received a copy of the GNU General Public License
+      // along with this program.  If not, see <http://www.gnu.org/licenses/>.
+      
+			// Known bugs: Wrong speed printed on screen (number), out of my control! (I think)
+			
+			window.onload = main;
+			
+			var socket = io();
+			
+			var requestThrottle = 100;
+			var lastTime = 0;
+			
+			var canvases = [];
+			var canvasContexts = [];
+			var canvasContainer;
+			
+			var lay0;
+			var lay1;
+			
+			var c = {}; // Constants
+			
+			c.amountOfLayers = 2;
+			c.defaultCanvasWidth = 400;
+			c.defaultCanvasHeight = 400;
+			c.canWidth = 400;
+			c.canHeight = 400;
+			c.gauges = [[100, 100], [200, 100], [300, 50], [100, 300]];
+			c.gaugesRadius = 40;
+			
+			c.gearGaugeHeight = 100;
+			c.gearGaugeStep = 100 / 12;
+			
+			Math.TAU = Math.PI * 2;
+			
+			var truckData = {heading: 0, pitch: 0, roll: 0, speed: 0, rpm: 0, gear: 0};
+			
+			function main()
+			{
+				var currentCanvas;
+				var currentCanvasContext;
+				
+				(function() // requestAnimationFrame polyfill by Erik Möller. Fixed by Paul Irish and Tino Zijdel, https://gist.github.com/paulirish/1579671, MIT license
+				{
+					var lastTime = 0;
+					var vendors = ['ms', 'moz', 'webkit', 'o'];
+					
+					for(var x = 0; x < vendors.length && !window.requestAnimationFrame; ++x) {
+						window.requestAnimationFrame = window[vendors[x]+'RequestAnimationFrame'];
+							window.cancelAnimationFrame = window[vendors[x]+'CancelAnimationFrame'] 
+								|| window[vendors[x]+'CancelRequestAnimationFrame'];
+					}
+
+					if (!window.requestAnimationFrame)
+						window.requestAnimationFrame = function(callback, element) {
+						var currTime = new Date().getTime();
+						var timeToCall = Math.max(0, 16 - (currTime - lastTime));
+						var id = window.setTimeout(function() { callback(currTime + timeToCall); }, 
+							timeToCall);
+						lastTime = currTime + timeToCall;
+						return id;
+					};
+
+					if (!window.cancelAnimationFrame)
+						window.cancelAnimationFrame = function(id) {
+						clearTimeout(id);
+					};
+				}());
+				
+				canvasContainer = document.createElement("div");
+				canvasContainer.style.width = (c.defaultCanvasWidth) + "px";
+				canvasContainer.style.height = (c.defaultCanvasHeight) + "px";
+				canvasContainer.style.border = "solid black";
+				
+				for(var i=c.amountOfLayers-1; i>=0; i--)
+				{
+					currentCanvas = document.createElement("canvas");
+
+					currentCanvas.style.position = "absolute";
+					currentCanvas.style.left = 0;
+					currentCanvas.style.top = 0;
+					currentCanvas.style.zIndex = i;
+					
+					currentCanvas.width = c.defaultCanvasWidth;
+					currentCanvas.height = c.defaultCanvasHeight;
+					
+					canvases.push(currentCanvas);
+					
+					currentCanvasContext = currentCanvas.getContext("2d");
+					
+					canvasContexts.push(currentCanvasContext);
+					
+					canvasContainer.appendChild(currentCanvas);
+				}
+				
+				lay0 = canvasContexts[0];
+				lay1 = canvasContexts[1];
+				
+				document.body.appendChild(canvasContainer);
+				
+				lay0.font = "20px Arial";
+				lay0.lineWidth = 4;
+				
+				addGraphicMembers();
+				
+				drawBasicBackground();
+				
+				window.requestAnimationFrame(update);
+			}
+			
+			socket.on("data", function(data){onDataReceived(data);});
+			
+			function addGraphicMembers()
+			{
+				for(var i=0, length=canvasContexts.length; i<length; i++)
+				{
+					canvasContexts[i].clearLayer = function()
+					{
+						this.clearRect(0, 0, c.canWidth, c.canHeight);
+					}
+					
+					canvasContexts[i].drawCircle = function(x, y, radius, filled)
+					{
+						this.beginPath();
+						this.arc(x, y, radius, 0, Math.TAU, true);
+						
+						if(filled)
+						{
+							this.fill();
+						} else
+						{
+							this.stroke();
+						}
+					}
+					
+					canvasContexts[i].drawGaugeArm = function(x, y, armLength, value, minPosition, addArmCenter) // Thanks to http://www.kirupa.com/html5/create_an_analog_clock_using_the_canvas.htm
+					{
+						var progress = value + minPosition;
+						var armRadians = (Math.TAU * progress) - (Math.TAU/4);
+						var targetX = x + Math.cos(armRadians) * (armLength * c.gaugesRadius);
+						var targetY = y + Math.sin(armRadians) * (armLength * c.gaugesRadius);
+						
+						this.beginPath();
+						this.moveTo(x, y);
+						this.lineTo(targetX, targetY);
+						this.stroke();
+						
+						if(addArmCenter)
+						{
+							this.fillStyle = "black";
+							this.drawCircle(x, y, 5, true);
+						}
+					}
+					
+					canvasContexts[i].drawCenteredString = function(string, x, y)
+					{
+						var halfStringLength = this.measureText(string).width / 2;
+						
+						this.fillText(string, x - halfStringLength, y);
+					}
+				}
+			}
+			
+			function onDataReceived(data)
+			{
+				parseAndUpdateData(data);
+			}
+			
+			function drawBasicBackground()
+			{
+				lay1.strokeStyle = "red";
+				lay1.drawCircle(c.gauges[0][0], c.gauges[0][1], c.gaugesRadius, false);
+				lay1.drawCircle(c.gauges[1][0], c.gauges[1][1], c.gaugesRadius, false);
+				
+				lay1.strokeStyle = "black";
+				lay1.strokeRect(c.gauges[2][0], c.gauges[2][1], 20, c.gearGaugeHeight);
+				
+				lay1.fillStyle = "rgb(200, 200, 200)";
+				lay1.drawCircle(c.gauges[3][0], c.gauges[3][1], c.gaugesRadius, true);
+			}
+			
+			function drawData()
+			{
+				var rpmGaugeArmLocation = truckData.rpm / 50000;
+				var compassGaugeArmLocation = truckData.heading / 360;  // North is 0. So, the heading shows the
+																		// difference between North and the truck
+																		// since heading - 0 = heading. Then, the
+																		// arm will show North (0) + the heading.
+																		// So, it shows the heading. But
+																		// technically, it should be inverted if
+																		// the heading of the truck would be
+																		// clockwise. Happily, it is not (currently).
+				
+				lay0.strokeStyle = "grey";
+				
+				lay0.drawGaugeArm(c.gauges[0][0], c.gauges[0][1], 0.9, truckData.speed / 200, 0.7, true); // truckData.speed / 200 is an estimate
+				
+				if(rpmGaugeArmLocation>0.7)
+				{
+					rpmGaugeArmLocation = 0.7; // After minPosition
+				}
+				
+				lay0.drawGaugeArm(c.gauges[1][0], c.gauges[1][1], 0.9, rpmGaugeArmLocation, 0.7, true);
+				
+				lay0.fillStyle = "red";
+				lay0.fillRect(c.gauges[2][0], c.gauges[2][1], 20, c.gearGaugeStep * truckData.gear);
+				
+				lay0.fillStyle = "grey";
+				lay0.drawCenteredString(Math.round(truckData.speed), c.gauges[0][0], c.gauges[0][1]+90);
+				lay0.drawCenteredString(Math.round(truckData.rpm), c.gauges[1][0], c.gauges[1][1]+90);
+				
+				lay0.strokeStyle = "red";
+				lay0.drawGaugeArm(c.gauges[3][0], c.gauges[3][1], 0.9, compassGaugeArmLocation, 0, false);
+				lay0.strokeStyle = "black";
+				lay0.drawGaugeArm(c.gauges[3][0], c.gauges[3][1], 0.9, compassGaugeArmLocation, 0.5);
+			}
+			
+			function parseAndUpdateData(data)
+			{
+				var valueIndex = 0;
+				var currentValue = "";
+				
+				var truckValue;
+				
+				for(var i=0, length=data.length; i<length; i++)
+				{
+					if(data[i]!=";" && i!=data.length-1)
+					{
+						currentValue = currentValue + data[i];
+					} else
+					{
+						truckValue = parseFloat(currentValue);
+						
+						if(valueIndex==0)
+						{
+							truckData.heading = truckValue;
+						} else if(valueIndex==1)
+						{
+							truckData.pitch = truckValue;
+						} else if(valueIndex==2)
+						{
+							truckData.roll = truckValue;
+						} else if(valueIndex==3)
+						{
+							truckData.speed = truckValue * 2; // Closest guess
+						} else if(valueIndex==4)
+						{
+							truckData.rpm = truckValue * 10;
+						} else if(valueIndex==5)
+						{
+							truckData.gear = truckValue;
+						}
+						
+						currentValue = "";
+						valueIndex++;
+					}
+				}
+			}
+			
+			function update()
+			{
+				var currentTime = Date.now();
+				
+				if(currentTime>lastTime+requestThrottle)
+				{
+					lay0.clearLayer();
+					
+					lastTime = currentTime;
+					socket.emit("request-data", "");
+					
+					drawData();
+				}
+				
+				window.requestAnimationFrame(update);
+			}
+		</script>
+		<style>
+			p
+			{
+				color: rgb(150, 150, 150);
+				font: 20px Arial;
+			}
+		</style>
+	</head>
+	<body>
+	</body>
+</html>
+			
