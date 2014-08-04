@@ -19,13 +19,15 @@ var app = require("express")();
 var http = require("http").Server(app);
 var io = require("socket.io")(http);
 
-var dataFilePath = "C:/Program Files (x86)/Steam/SteamApps/common/Euro Truck Simulator 2/bin/win_x86/ETS2Data.txt";
+var dataFilePath = "C:/Program Files (x86)/Steam/SteamApps/common/Euro Truck Simulator 2/bin/win_x86";
  
 var defaultFilePath = "/index.html";
 
+var logFileName = "ETS2Data.txt";
+
 var newline = "\n";
 
-// Path: "C:/Program Files (x86)/Steam/SteamApps/common/Euro Truck Simulator 2/bin/win_x86/ETS2Data.txt"
+dataFilePath = dataFilePath + "/" + logFileName;
 
 // Truck data order: Heading, pitch, roll, speed, rpm, gear
 
