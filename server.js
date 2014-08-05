@@ -66,6 +66,7 @@ function sendData()
 		if (err)
 		{
 			console.log("Error reading data file! Is it's path '" + dataFilePath + "'? If not, please modify it in server.js. The file should be in the same directory as the Euro Truck Simulator 2 binary.");
+			return;
 		}
 		
 		for(var i=data.length-1; i>0; i--)
