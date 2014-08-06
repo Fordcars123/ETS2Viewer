@@ -4,22 +4,22 @@
 		<title>ETS2 Viewer</title>
 		<script src="/socket.io/socket.io.js"></script>
 		<script>
-      // ETS2Viewer
-      // Copyright © 2014 Carl Hewett
+			// ETS2Viewer
+			// Copyright © 2014 Carl Hewett
 
-      // This program is free software: you can redistribute it and/or modify
-      // it under the terms of the GNU General Public License as published by
-      // the Free Software Foundation, either version 3 of the License, or
-      // (at your option) any later version.
+			// This program is free software: you can redistribute it and/or modify
+			// it under the terms of the GNU General Public License as published by
+			// the Free Software Foundation, either version 3 of the License, or
+			// (at your option) any later version.
 
-      // This program is distributed in the hope that it will be useful,
-      // but WITHOUT ANY WARRANTY; without even the implied warranty of
-      // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-      // GNU General Public License for more details.
+			// This program is distributed in the hope that it will be useful,
+			// but WITHOUT ANY WARRANTY; without even the implied warranty of
+			// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+			// GNU General Public License for more details.
 
-      // You should have received a copy of the GNU General Public License
-      // along with this program.  If not, see <http://www.gnu.org/licenses/>.
-      
+			// You should have received a copy of the GNU General Public License
+			// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+			
 			// Known bugs: Wrong speed printed on screen (number), out of my control! (I think)
 			
 			window.onload = main;
@@ -263,7 +263,7 @@
 							truckData.speed = truckValue * 2; // Closest guess
 						} else if(valueIndex==4)
 						{
-							truckData.rpm = truckValue * 10;
+							truckData.rpm = truckValue;
 						} else if(valueIndex==5)
 						{
 							truckData.gear = truckValue;
